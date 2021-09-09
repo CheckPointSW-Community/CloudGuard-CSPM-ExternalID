@@ -1,0 +1,98 @@
+---
+- name: AWS/CSPM - Rotate External Id
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    iam_role_name: "CloudGuard-Connect"
+    d9_update_creds: "https://api.dome9.com/v2/cloudaccounts/credentials"
+  tasks:
+    - name: Generate Random External Id
+      set_fact:
+        external_id: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=24') }}"
+      changed_when: true
+      no_log: true
+
+    - name: AWS - Get IAM Role {{ iam_role_name }}
+      iam_role_info:
+        name: "{{ iam_role_name }}"
+      register: iam_role_result
+      no_log: true
+
+    - name: SetFact - IAM Role ARN
+      set_fact:
+        iam_role_arn: "{{ item }}"
+      loop: "{{ iam_role_result | json_query('iam_roles[*].arn') }}"
+
+    - name: SetFact - AWS Account Number
+      set_fact:
+        aws_account_number: "{{ iam_role_arn | regex_replace('arn:aws:iam::(\\d+).*', '\\1') }}"
+
+    - name: CSPM/Dome9 - Get CloudGuard ID
+      uri:
+        url: "https://api.dome9.com/v2/cloudaccounts/{{ aws_account_number }}"
+        force_basic_auth: yes
+        url_username: "{{ d9_api_key }}"
+        url_password: "{{ d9_api_secret }}"
+        return_content: yes
+        status_code: 200
+        headers:
+          Accept: 'application/json'
+          Accept-Encoding: ''
+        method: GET
+      register: d9_cg_id
+      until: d9_cg_id.status == 200
+      delay: 2
+      retries: 3
+
+    - name: SetFact - CSPM/Dome9 ClougGuard ID
+      set_fact:
+        d9_cg_id: "{{ d9_cg_id.json.id }}"
+
+    - name: AWS - Update IAM role {{ iam_role_name }} with custom trust relationship
+      iam_role:
+        name: "{{ iam_role_name }}"
+        state: present
+        assume_role_policy_document: "{{ lookup('template','aws_trust_policy.j2') }}"
+      no_log: true
+
+    - name: CSPM/Dome9 - Update External Id
+      uri:
+        url: "{{ d9_update_creds }}"
+        force_basic_auth: yes
+        url_username: "{{ d9_api_key }}"
+        url_password: "{{ d9_api_secret }}"
+        return_content: yes
+        status_code: 200
+        headers:
+          Accept: 'application/json'
+          Accept-Encoding: ''
+        method: PUT
+        body: "{{ lookup('template','d9_payload.j2') }}"
+        body_format: json
+      register: d9_result
+      until: d9_result.status == 200
+      delay: 5
+      retries: 3
+      changed_when: true
+      no_log: true
+
+    - name: CSPM/Dome9 - Reset Missing Permissions
+      uri:
+        url: "https://api.dome9.com/v2/cloudaccounts/{{ d9_cg_id }}/MissingPermissions/Reset"
+        force_basic_auth: yes
+        url_username: "{{ d9_api_key }}"
+        url_password: "{{ d9_api_secret }}"
+        return_content: yes
+        status_code: 204
+        headers:
+          Accept: 'application/json'
+          Accept-Encoding: ''
+        method: PUT
+      register: d9_res_perm
+      until: d9_res_perm.status == 204
+      delay: 2
+      retries: 3
+      no_log: true
+      changed_when: true
+
