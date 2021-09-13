@@ -23,6 +23,11 @@ Set AWS environmental variables for your shell session to work with the `iam_*` 
  export AWS_SECRET_KEY='<API SECRET KEY>'
 ```
 
+### Clone Repo
+```
+git clone https://github.com/Senas23/cp_cspm_rotate_external_id.git
+```
+
 ### Install AWS Ansible modules requirements
 Either with pip or compiled binaries from your Linux distro
 ```
