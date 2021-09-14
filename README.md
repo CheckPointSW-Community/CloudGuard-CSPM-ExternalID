@@ -1,5 +1,5 @@
-# cp_cspm_rotate_external_id
-CSPM/Dome9 and AWS - Rotate External Id on the IAM Role's Trust Policy
+# CloudGuard CSPM External ID Rotation
+Oftentimes, customers require having the AWS external ID utilized by the CP CSPM SaaS rotated as stipulted by various compliance  frameworks.  This repo contains an ansible tool to assit custoemers with this need. 
 
 ## Purpose
 Create random External Id on the AWS IAM Role's Trust Policy, update and re-validate CloudGuard CSPM account
